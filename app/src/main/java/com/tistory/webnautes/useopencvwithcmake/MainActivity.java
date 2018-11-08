@@ -1,0 +1,220 @@
+package com.tistory.webnautes.useopencvwithcmake;
+
+import android.annotation.TargetApi;
+import android.content.DialogInterface;
+import android.content.pm.PackageManager;
+import android.os.Build;
+import android.os.Bundle;
+import android.support.annotation.NonNull;
+import android.support.v4.content.ContextCompat;
+import android.support.v7.app.AlertDialog;
+import android.support.v7.app.AppCompatActivity;
+import android.util.Log;
+import android.view.MotionEvent;
+import android.view.SurfaceView;
+import android.view.View;
+import android.view.WindowManager;
+import android.widget.FrameLayout;
+import android.widget.ImageView;
+import android.widget.LinearLayout;
+import android.widget.VideoView;
+
+import org.opencv.android.BaseLoaderCallback;
+import org.opencv.android.CameraBridgeViewBase;
+import org.opencv.android.LoaderCallbackInterface;
+import org.opencv.android.OpenCVLoader;
+import org.opencv.core.Mat;
+
+
+public class MainActivity extends AppCompatActivity
+        implements CameraBridgeViewBase.CvCameraViewListener2 {
+
+    private static final String TAG = "opencv";
+    private CameraBridgeViewBase mOpenCvCameraView;
+    private Mat matInput;
+    private Mat matResult;
+    public int a = 5;
+    public float x1 = 0;
+    public float y1 = 0;
+    public float x2 = 0;
+    public float y2 = 0;
+
+
+    public native void ConvertRGBtoGray(long matAddrInput, long matAddrResult, int a, float x1, float y1, float x2, float y2);
+
+
+    static {
+        System.loadLibrary("opencv_java3");
+        System.loadLibrary("native-lib");
+    }
+
+
+
+    private BaseLoaderCallback mLoaderCallback = new BaseLoaderCallback(this) {
+        @Override
+        public void onManagerConnected(int status) {
+            switch (status) {
+                case LoaderCallbackInterface.SUCCESS:
+                {
+                    mOpenCvCameraView.enableView();
+                } break;
+                default:
+                {
+                    super.onManagerConnected(status);
+                } break;
+            }
+        }
+    };
+
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+
+        getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN,
+                WindowManager.LayoutParams.FLAG_FULLSCREEN);
+        getWindow().setFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON,
+                WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+
+        setContentView(R.layout.activity_main);
+
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            //퍼미션 상태 확인
+            if (!hasPermissions(PERMISSIONS)) {
+
+                //퍼미션 허가 안되어있다면 사용자에게 요청
+                requestPermissions(PERMISSIONS, PERMISSIONS_REQUEST_CODE);
+            }
+        }
+
+        a = 1;
+
+        //android.widget.
+        LinearLayout ll = (LinearLayout)findViewById(R.id.linearLayout1);
+        ll.setOnTouchListener(new View.OnTouchListener() {
+            @Override
+            public boolean onTouch(View v, MotionEvent event) {
+                switch (event.getAction()){
+                    case MotionEvent.ACTION_DOWN :
+                        //a += 1;
+                        x1 = event.getX();
+                        y1 = event.getY();
+                        if(a == 2){
+                            a = 1;
+                        }
+                        else if(a == 1){
+                            a = 2;
+                        }
+                        break;
+
+                    case MotionEvent.ACTION_MOVE :
+                        x2 = event.getX();
+                        y2 = event.getY();
+
+                        break;
+                    case MotionEvent.ACTION_UP :
+                        //a += 2;
+                }
+                return true;
+            }
+        });
+
+        mOpenCvCameraView = (CameraBridgeViewBase)findViewById(R.id.activity_surface_view);
+        mOpenCvCameraView.setVisibility(SurfaceView.VISIBLE);
+        mOpenCvCameraView.setCvCameraViewListener(this);
+        mOpenCvCameraView.setCameraIndex(0); // front-camera(1),  back-camera(0)
+        mLoaderCallback.onManagerConnected(LoaderCallbackInterface.SUCCESS);
+    }
+
+    @Override
+    public void onPause()
+    {
+        super.onPause();
+        if (mOpenCvCameraView != null)
+            mOpenCvCameraView.disableView();
+    }
+
+    @Override
+    public void onResume()
+    {
+        super.onResume();
+
+        if (!OpenCVLoader.initDebug()) {
+            Log.d(TAG, "onResume :: Internal OpenCV library not found.");
+            OpenCVLoader.initAsync(OpenCVLoader.OPENCV_VERSION_3_2_0, this, mLoaderCallback);
+        } else {
+            Log.d(TAG, "onResum :: OpenCV library found inside package. Using it!");
+            mLoaderCallback.onManagerConnected(LoaderCallbackInterface.SUCCESS);
+        }
+    }
+
+    public void onDestroy() {
+        super.onDestroy();
+
+        if (mOpenCvCameraView != null)
+            mOpenCvCameraView.disableView();
+    }
+
+    @Override
+    public void onCameraViewStarted(int width, int height) {
+
+    }
+
+    @Override
+    public void onCameraViewStopped() {
+
+    }
+
+    @Override
+    public Mat onCameraFrame(CameraBridgeViewBase.CvCameraViewFrame inputFrame) {
+
+        matInput = inputFrame.rgba();
+
+
+        //if ( matResult != null ) matResult.release(); fix 2018. 8. 18
+
+        if ( matResult == null )
+
+            matResult = new Mat(matInput.rows(), matInput.cols(), matInput.type());
+
+        ConvertRGBtoGray(matInput.getNativeObjAddr(), matResult.getNativeObjAddr(), a, x1, y1, x2, y2);
+
+        return matResult;
+    }
+
+
+
+    //여기서부턴 퍼미션 관련 메소드
+    static final int PERMISSIONS_REQUEST_CODE = 1000;
+    String[] PERMISSIONS  = {"android.permission.CAMERA"};
+
+
+    private boolean hasPermissions(String[] permissions) {
+        int result;
+
+        //스트링 배열에 있는 퍼미션들의 허가 상태 여부 확인
+        for (String perms : permissions){
+
+            result = ContextCompat.checkSelfPermission(this, perms);
+
+            if (result == PackageManager.PERMISSION_DENIED){
+                //허가 안된 퍼미션 발견
+                return false;
+            }
+        }
+
+        //모든 퍼미션이 허가되었음
+        return true;
+    }
+
+
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions,
+                                           @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+    }
+
+
+}
