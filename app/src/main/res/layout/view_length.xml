@@ -9,6 +9,8 @@
     android:textAlignment="center"
     android:layout_weight="1"
     android:padding="6dp"
+    android:background="@drawable/round"
+    android:textColor="#FFFFFF"
     >
 
 </TextView>

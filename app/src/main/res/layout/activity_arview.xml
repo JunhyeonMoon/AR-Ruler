@@ -25,18 +25,9 @@
         android:text="지우기"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        app:layout_constraintStart_toEndOf="@+id/openCVbtn"
+        app:layout_constraintBottom_toBottomOf="parent"
         />
 
-    <TextView
-        android:id="@+id/distanceText"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="length : "
-        android:background="#FFFFFF"
-        android:textColor="#000000"
-        android:textSize="20dp"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintBottom_toTopOf="@id/openCVbtn"
-        />
 
 </android.support.constraint.ConstraintLayout>

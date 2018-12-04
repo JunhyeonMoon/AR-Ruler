@@ -9,6 +9,7 @@ import android.os.SystemClock;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.LayoutInflater;
 import android.view.MotionEvent;
 import android.view.View;
 import android.widget.Button;
@@ -25,17 +26,24 @@ import com.google.ar.sceneform.Node;
 import com.google.ar.sceneform.math.Quaternion;
 import com.google.ar.sceneform.math.Vector3;
 import com.google.ar.sceneform.rendering.Color;
+import com.google.ar.sceneform.rendering.DpToMetersViewSizer;
+import com.google.ar.sceneform.rendering.FixedWidthViewSizer;
 import com.google.ar.sceneform.rendering.MaterialFactory;
 import com.google.ar.sceneform.rendering.ModelRenderable;
+import com.google.ar.sceneform.rendering.PlaneRenderer;
+import com.google.ar.sceneform.rendering.Renderable;
 import com.google.ar.sceneform.rendering.ShapeFactory;
 import com.google.ar.sceneform.rendering.ViewRenderable;
+import com.google.ar.sceneform.rendering.ViewSizer;
 import com.google.ar.sceneform.ux.ArFragment;
 
 import org.opencv.core.Mat;
 import org.opencv.imgproc.Imgproc;
+import org.w3c.dom.Text;
 
 import java.nio.ByteBuffer;
 import java.util.Vector;
+import java.util.concurrent.CompletableFuture;
 
 import static org.opencv.core.CvType.CV_8UC1;
 import static org.opencv.imgproc.Imgproc.cvtColor;
@@ -54,11 +62,11 @@ public class ArviewActivity extends AppCompatActivity {
     private Image image;
     private Vector<AnchorNode> twoNode = new Vector<AnchorNode>(2);
     private Vector<AnchorNode> touchNode = new Vector<AnchorNode>(1000);
+    private Vector<vec2> renderLengthPos = new Vector<>(2);
     private boolean isTwo = false;
-    private TextView distanceText;
     private Button opencvBtn;
     private Button deleteBtn;
-    private ViewRenderable lengthViewRenderable;
+    private ViewRenderable viewRenderable;
 
     private byte[] imageData = null;
     private Mat matInput;
@@ -71,8 +79,8 @@ public class ArviewActivity extends AppCompatActivity {
     private float y = 0.0f;
     private int metaState = 0;
     private MotionEvent motionEvent;
-    private boolean firstTouch = true;
-    private boolean renderLength = false;
+    private boolean isFirstTouch = true;
+    private boolean isRenderLength = false;
 
     public native float[] ConvertRGBtoGray(long matAddrInput);
 
@@ -85,17 +93,11 @@ public class ArviewActivity extends AppCompatActivity {
 
         setContentView(R.layout.activity_arview);
         arFragment = (ArFragment) getSupportFragmentManager().findFragmentById(R.id.ux_fragment);
-        distanceText = findViewById(R.id.distanceText);
+
         opencvBtn = findViewById(R.id.openCVbtn);
         deleteBtn = findViewById(R.id.deletebtn);
 
         ArSceneView arSceneView = arFragment.getArSceneView();
-
-
-        ViewRenderable.builder()
-                .setView(this, R.layout.view_length)
-                .build()
-                .thenAccept(renderable -> lengthViewRenderable = renderable);
 
         deleteBtn.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -111,26 +113,21 @@ public class ArviewActivity extends AppCompatActivity {
             Log.d(TAG, "motion Event (x, y): " + Float.toString(motionEvent.getX()) + " " + Float.toString(motionEvent.getY()));
             //Log.d(TAG, "arview size = " + Integer.toString(arFragment.getArSceneView().getWidth()) + " " + Integer.toString(arFragment.getArSceneView().getHeight()));
 
-
             Anchor tmp = hitResult.createAnchor();
             AnchorNode tmpNode = new AnchorNode(tmp);
             twoNode.addElement(tmpNode);
             touchNode.addElement(tmpNode);
+
             if (!isTwo) {
                 isTwo = true;
             } else {
                 //render line
-                addLineBetweenHits(hitResult, plane, motionEvent);
-
-                //render Length
-
-
+                float length = addLineBetweenHits(hitResult, plane, motionEvent);
 
                 twoNode.clear();
                 isTwo = false;
             }
         });
-
 
         opencvBtn.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -193,9 +190,9 @@ public class ArviewActivity extends AppCompatActivity {
                     pos.add(new vec2(rec[4], rec[5]));
                     pos.add(new vec2(rec[6], rec[7]));
 
-                    if(firstTouch){
-                        x = (float)arSceneView.getWidth()/2;
-                        y = (float)arSceneView.getHeight()/2;
+                    if (isFirstTouch) {
+                        x = (float) arSceneView.getWidth() / 2;
+                        y = (float) arSceneView.getHeight() / 2;
                         motionEvent = MotionEvent.obtain(
                                 downTime,
                                 eventTime,
@@ -205,19 +202,19 @@ public class ArviewActivity extends AppCompatActivity {
                         );
                         arFragment.getArSceneView().dispatchTouchEvent(motionEvent);
 
-                        firstTouch = false;
+                        isFirstTouch = false;
                     }
 
 
                     for (int i = 0; i < 4; i++) {
-                        for(int j = 0; j < 2; j++){
-                            if(i+j < 4){
-                                y = pos.get(j+i).x; // 세로로 찍으면 xy 바뀜 (640X480 -> 480X640)
+                        for (int j = 0; j < 2; j++) {
+                            if (i + j < 4) {
+                                y = pos.get(j + i).x; // 세로로 찍으면 xy 바뀜 (640X480 -> 480X640)
                                 // arcore는 1080 * 1920 이므로 비율을 곱한다
-                                y *= (float)arSceneView.getHeight()/(float)image.getWidth();
-                                x = pos.get(j+i).y;
-                                x *= (float)arSceneView.getWidth()/(float)image.getHeight();
-                                x = (float)arSceneView.getWidth() - x;
+                                y *= (float) arSceneView.getHeight() / (float) image.getWidth();
+                                x = pos.get(j + i).y;
+                                x *= (float) arSceneView.getWidth() / (float) image.getHeight();
+                                x = (float) arSceneView.getWidth() - x;
 
                                 //Log.d(TAG, "x, y : " + Float.toString(x) + " " + Float.toString(y));
                                 motionEvent = MotionEvent.obtain(
@@ -228,12 +225,12 @@ public class ArviewActivity extends AppCompatActivity {
                                         y, metaState
                                 );
                                 arFragment.getArSceneView().dispatchTouchEvent(motionEvent);
-                            }else{
+                            } else {
                                 y = pos.get(0).x;
-                                y *= (float)arSceneView.getHeight()/(float)image.getWidth();
+                                y *= (float) arSceneView.getHeight() / (float) image.getWidth();
                                 x = pos.get(0).y;
-                                x *= (float)arSceneView.getWidth()/(float)image.getHeight();
-                                x = (float)arSceneView.getWidth() - x;
+                                x *= (float) arSceneView.getWidth() / (float) image.getHeight();
+                                x = (float) arSceneView.getWidth() - x;
                                 //Log.d(TAG, "x, y : " + Float.toString(x) + " " + Float.toString(y));
                                 motionEvent = MotionEvent.obtain(
                                         downTime,
@@ -275,7 +272,7 @@ public class ArviewActivity extends AppCompatActivity {
         return true;
     }
 
-    private void addLineBetweenHits(HitResult hitResult, Plane plane, MotionEvent motionEvent) {
+    private float addLineBetweenHits(HitResult hitResult, Plane plane, MotionEvent motionEvent) {
         AnchorNode node1 = twoNode.get(0);
         AnchorNode node2 = twoNode.get(1);
 
@@ -295,6 +292,7 @@ public class ArviewActivity extends AppCompatActivity {
                             ModelRenderable model = ShapeFactory.makeCube(
                                     new Vector3(.001f, .001f, difference.length()),
                                     Vector3.zero(), material);
+                            model.setShadowCaster(false);
 
                             Node node = new Node();
                             node.setParent(node1);
@@ -304,10 +302,38 @@ public class ArviewActivity extends AppCompatActivity {
                         }
                 );
 
-
         float dis = difference.length();
-        String dis_s = Float.toString(dis);
-        distanceText.setText("distance : " + dis_s + "m");
+        dis = dis * 100.f;
+        int dis_i = (int)dis;
+        String dis_s = Integer.toString(dis_i);
+
+        ViewRenderable.builder()
+                .setSizer(new DpToMetersViewSizer(2000))
+                .setView(this, R.layout.view_length)
+                .setVerticalAlignment(ViewRenderable.VerticalAlignment.BOTTOM)
+                .setHorizontalAlignment(ViewRenderable.HorizontalAlignment.LEFT)
+                .build()
+                .thenAccept(renderable -> {
+                    viewRenderable = renderable;
+                    TextView textView = (TextView)viewRenderable.getView();
+                    textView.setText(dis_s+"cm");
+                    viewRenderable.setShadowCaster(false);
+                    //viewRenderable.setSizer(
+                    Node node = new Node();
+                    node.setParent(node1);
+                    node.setRenderable(viewRenderable);
+                    node.setWorldPosition(Vector3.add(point1, point2).scaled(.5f));
+                })
+                .exceptionally(
+                        throwable -> {
+                            //
+                            Log.d(TAG, "addLineBetweenHits: failed to build viewrenderable");
+                            return null;
+                        }
+                );
+
+
+        return difference.length();
     }
 
     public Mat getYUV2Mat(byte[] data) {
@@ -318,13 +344,13 @@ public class ArviewActivity extends AppCompatActivity {
         return mRGB;
     }
 
-    private void deleteAllLine(){
-        if(touchNode.size() > 0){
-            for(int i = 0; i < touchNode.size(); i++){
+    private void deleteAllLine() {
+        if (touchNode.size() > 0) {
+            for (int i = 0; i < touchNode.size(); i++) {
                 touchNode.get(i).getAnchor().detach();
             }
             touchNode.clear();
-        }else{
+        } else {
             //Toast.makeText(this, "지울 선이 없습니다.", Toast.LENGTH_SHORT).show();
         }
     }
@@ -334,8 +360,6 @@ public class ArviewActivity extends AppCompatActivity {
      * A native method that is implemented by the 'native-lib' native library,
      * which is packaged with this application.
      */
-
-
 
 
 }
