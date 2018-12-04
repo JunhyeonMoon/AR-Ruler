@@ -62,11 +62,13 @@ public class ArviewActivity extends AppCompatActivity {
     private Image image;
     private Vector<AnchorNode> twoNode = new Vector<AnchorNode>(2);
     private Vector<AnchorNode> touchNode = new Vector<AnchorNode>(1000);
-    private Vector<vec2> renderLengthPos = new Vector<>(2);
+    private Vector<AnchorNode> drgNode = new Vector<AnchorNode>(2);
     private boolean isTwo = false;
     private Button opencvBtn;
     private Button deleteBtn;
+    private Button drgBtn;
     private ViewRenderable viewRenderable;
+    private boolean tflag = false;
 
     private byte[] imageData = null;
     private Mat matInput;
@@ -80,7 +82,7 @@ public class ArviewActivity extends AppCompatActivity {
     private int metaState = 0;
     private MotionEvent motionEvent;
     private boolean isFirstTouch = true;
-    private boolean isRenderLength = false;
+    private boolean isDrg = false;
 
     public native float[] ConvertRGBtoGray(long matAddrInput);
 
@@ -96,6 +98,7 @@ public class ArviewActivity extends AppCompatActivity {
 
         opencvBtn = findViewById(R.id.openCVbtn);
         deleteBtn = findViewById(R.id.deletebtn);
+        drgBtn = findViewById(R.id.dragbtn);
 
         ArSceneView arSceneView = arFragment.getArSceneView();
 
@@ -104,6 +107,68 @@ public class ArviewActivity extends AppCompatActivity {
             public void onClick(View v) {
                 deleteAllLine();
                 Toast.makeText(ArviewActivity.this, "모든 선을 지웠습니다", Toast.LENGTH_SHORT).show();
+            }
+        });
+
+
+        drgBtn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if(!isDrg){//start drag
+                    if (isFirstTouch) {
+                        float x = (float) arSceneView.getWidth() / 2;
+                        float y = (float) arSceneView.getHeight() / 2;
+                        motionEvent = MotionEvent.obtain(
+                                downTime,
+                                eventTime,
+                                MotionEvent.ACTION_DOWN, //Touch event catch only UP action
+                                x,
+                                y, metaState
+                        );
+                        arFragment.getArSceneView().dispatchTouchEvent(motionEvent);
+
+                        isFirstTouch = false;
+                    }
+
+                    isDrg = true;
+                    tflag = true;
+                    float x = (float) arSceneView.getWidth() / 2;
+                    float y = (float) arSceneView.getHeight() / 2;
+                    motionEvent = MotionEvent.obtain(
+                            downTime,
+                            eventTime,
+                            MotionEvent.ACTION_UP, //Touch event catch only UP action
+                            x,
+                            y, metaState
+                    );
+                    arFragment.getArSceneView().dispatchTouchEvent(motionEvent);
+
+                    new Thread(new Runnable() {
+                        @Override
+                        public void run() {
+                            while(tflag){
+                                try {
+                                    Log.d(TAG, "run: Thread");
+                                    float x = (float) arSceneView.getWidth() / 2;
+                                    float y = (float) arSceneView.getHeight() / 2;
+                                    motionEvent = MotionEvent.obtain(
+                                            downTime,
+                                            eventTime,
+                                            MotionEvent.ACTION_UP, //Touch event catch only UP action
+                                            x,
+                                            y, metaState
+                                    );
+                                    arFragment.getArSceneView().dispatchTouchEvent(motionEvent);
+                                    Thread.sleep(1000);
+                                }catch (Throwable t) { }
+                            }
+                        }
+                    }).run();
+                }else{//end drag
+                    tflag = false;
+                    drgNode.clear();
+                    isDrg = false;
+                }
             }
         });
 
@@ -118,14 +183,23 @@ public class ArviewActivity extends AppCompatActivity {
             twoNode.addElement(tmpNode);
             touchNode.addElement(tmpNode);
 
-            if (!isTwo) {
-                isTwo = true;
-            } else {
-                //render line
-                float length = addLineBetweenHits(hitResult, plane, motionEvent);
-
-                twoNode.clear();
-                isTwo = false;
+            if(isDrg){
+                if(drgNode.size() == 0) {
+                    drgNode.add(tmpNode);
+                }else{
+                    drgNode.add(tmpNode);
+                    addLineBetweenDrg(hitResult, plane, motionEvent);
+                    drgNode.remove(1);
+                }
+            }else{
+                if (!isTwo) {
+                    isTwo = true;
+                } else {
+                    //render line
+                    float length = addLineBetweenHits(hitResult, plane, motionEvent);
+                    twoNode.clear();
+                    isTwo = false;
+                }
             }
         });
 
@@ -332,6 +406,69 @@ public class ArviewActivity extends AppCompatActivity {
                         }
                 );
 
+
+        return difference.length();
+    }
+
+    private float addLineBetweenDrg(HitResult hitResult, Plane plane, MotionEvent motionEvent){
+        AnchorNode node1 = drgNode.get(0);
+        AnchorNode node2 = drgNode.get(1);
+
+        node1.setParent(arFragment.getArSceneView().getScene());
+        Vector3 point1, point2;
+        point1 = node1.getWorldPosition();
+        point2 = node2.getWorldPosition();
+
+        final Vector3 difference = Vector3.subtract(point1, point2);
+        final Vector3 directionFromTopToBottom = difference.normalized();
+        final Quaternion rotationFromAToB = Quaternion.lookRotation(directionFromTopToBottom, Vector3.up());
+        Color color = new Color();
+        color.set(1, 0, 0);
+        MaterialFactory.makeOpaqueWithColor(getApplicationContext(), color)
+                .thenAccept(
+                        material -> {
+                            ModelRenderable model = ShapeFactory.makeCube(
+                                    new Vector3(.001f, .001f, difference.length()),
+                                    Vector3.zero(), material);
+                            model.setShadowCaster(false);
+
+                            Node node = new Node();
+                            node.setParent(node1);
+                            node.setRenderable(model);
+                            node.setWorldPosition(Vector3.add(point1, point2).scaled(.5f));
+                            node.setWorldRotation(rotationFromAToB);
+                        }
+                );
+
+        float dis = difference.length();
+        dis = dis * 100.f;
+        int dis_i = (int)dis;
+        String dis_s = Integer.toString(dis_i);
+
+        ViewRenderable.builder()
+                .setSizer(new DpToMetersViewSizer(2000))
+                .setView(this, R.layout.view_length)
+                .setVerticalAlignment(ViewRenderable.VerticalAlignment.BOTTOM)
+                .setHorizontalAlignment(ViewRenderable.HorizontalAlignment.LEFT)
+                .build()
+                .thenAccept(renderable -> {
+                    viewRenderable = renderable;
+                    TextView textView = (TextView)viewRenderable.getView();
+                    textView.setText(dis_s+"cm");
+                    viewRenderable.setShadowCaster(false);
+                    //viewRenderable.setSizer(
+                    Node node = new Node();
+                    node.setParent(node1);
+                    node.setRenderable(viewRenderable);
+                    node.setWorldPosition(Vector3.add(point1, point2).scaled(.5f));
+                })
+                .exceptionally(
+                        throwable -> {
+                            //
+                            Log.d(TAG, "addLineBetweenDrg: failed to build viewrenderable");
+                            return null;
+                        }
+                );
 
         return difference.length();
     }

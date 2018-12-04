@@ -21,11 +21,20 @@
         />
 
     <Button
+        android:id="@+id/dragbtn"
+        android:text="길이 측정"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        app:layout_constraintStart_toEndOf="@id/openCVbtn"
+        app:layout_constraintBottom_toBottomOf="parent"
+        />
+
+    <Button
         android:id="@+id/deletebtn"
         android:text="지우기"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        app:layout_constraintStart_toEndOf="@+id/openCVbtn"
+        app:layout_constraintStart_toEndOf="@+id/dragbtn"
         app:layout_constraintBottom_toBottomOf="parent"
         />
 
