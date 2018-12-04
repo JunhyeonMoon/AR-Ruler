@@ -1,301 +1,241 @@
 package com.example.paranocs.ar_ruler;
 
-import android.app.Activity;
-import android.app.ActivityManager;
-import android.content.Context;
-import android.graphics.Bitmap;
-import android.graphics.ImageFormat;
-import android.graphics.Rect;
-import android.graphics.YuvImage;
-import android.media.Image;
-import android.os.Build;
-import android.os.SystemClock;
-import android.renderscript.Allocation;
-import android.renderscript.Element;
-import android.renderscript.RenderScript;
-import android.renderscript.Script;
-import android.renderscript.Type;
+
+import android.content.Intent;
+import android.provider.MediaStore;
+import android.support.design.widget.FloatingActionButton;
+import android.support.design.widget.NavigationView;
+import android.support.design.widget.TabLayout;
+import android.support.v4.app.Fragment;
+import android.support.v4.app.FragmentManager;
+import android.support.v4.app.FragmentPagerAdapter;
+import android.support.v4.view.GravityCompat;
+import android.support.v4.view.ViewPager;
+import android.support.v4.widget.DrawerLayout;
+import android.support.v7.app.ActionBarDrawerToggle;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
-import android.util.Log;
-import android.view.MotionEvent;
+import android.support.v7.widget.Toolbar;
+import android.view.MenuItem;
 import android.view.View;
-import android.widget.Button;
-import android.widget.TextView;
 import android.widget.Toast;
 
-import com.google.ar.core.Anchor;
-import com.google.ar.core.Frame;
-import com.google.ar.core.HitResult;
-import com.google.ar.core.Plane;
-import com.google.ar.core.exceptions.NotYetAvailableException;
-import com.google.ar.sceneform.AnchorNode;
-import com.google.ar.sceneform.ArSceneView;
-import com.google.ar.sceneform.Node;
-import com.google.ar.sceneform.math.Quaternion;
-import com.google.ar.sceneform.math.Vector3;
-import com.google.ar.sceneform.rendering.Color;
-import com.google.ar.sceneform.rendering.MaterialFactory;
-import com.google.ar.sceneform.rendering.ModelRenderable;
-import com.google.ar.sceneform.rendering.ShapeFactory;
-import com.google.ar.sceneform.rendering.ViewRenderable;
-import com.google.ar.sceneform.ux.ArFragment;
-import com.google.ar.schemas.lull.Vec2;
-
-import org.opencv.core.CvType;
-import org.opencv.core.Mat;
-import org.opencv.imgproc.Imgproc;
-
-import java.io.ByteArrayOutputStream;
-import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Vector;
-
-import static org.opencv.core.CvType.CV_8UC1;
-import static org.opencv.imgproc.Imgproc.cvtColor;
-
-public class MainActivity extends AppCompatActivity {
-    // Used to load the 'native-lib' library on application startup.
-    static {
-        System.loadLibrary("opencv_java3");
-        System.loadLibrary("native-lib");
-    }
-
-    private static String TAG = MainActivity.class.getName();
-    private static final double MIN_OPENGL_VERSION = 3.0;
-
-    private ArFragment arFragment;
-    private Image image;
-    private Vector<AnchorNode> twoNode = new Vector<AnchorNode>(2);
-    private boolean isTwo = false;
-    private TextView distanceText;
-    private Button opencvBtn;
-    private ViewRenderable distanceViewRenderable;
-
-    private byte[] imageData = null;
-    private Mat matInput;
-
-
-    //for touch event
-    private long downTime = SystemClock.uptimeMillis();
-    private long eventTime = SystemClock.uptimeMillis() + 100;
-    private float x = 0.0f;
-    private float y = 0.0f;
-    private int metaState = 0;
-    private MotionEvent motionEvent;
-
-    public native float[] ConvertRGBtoGray(long matAddrInput);
+public class MainActivity extends AppCompatActivity implements NavigationView.OnNavigationItemSelectedListener{
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        if (!checkIsSupportedDeviceOrFinish(this)) {
-            return;
-        }
-
         setContentView(R.layout.activity_main);
-        arFragment = (ArFragment) getSupportFragmentManager().findFragmentById(R.id.ux_fragment);
-        distanceText = findViewById(R.id.distanceText);
-        opencvBtn = findViewById(R.id.openCVbtn);
+        Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
+//        setSupportActionBar(toolbar);
 
-        ArSceneView arSceneView = arFragment.getArSceneView();
+//        FloatingActionButton fab = (FloatingActionButton) findViewById(R.id.fab);
+//        fab.setOnClickListener(new View.OnClickListener() {
+//            @Override
+//            public void onClick(View view) {
+//                Toast.makeText(MainActivity.this, "글을 씁니다.", Toast.LENGTH_SHORT).show();
+//
+//                Intent intent = new Intent(MainActivity.this,Tab_Write_Form.class);
+//                startActivity(intent);
+//            }
+//        });
 
-        ViewRenderable.builder()
-                .setView(this, R.layout.view_distance)
-                .build()
-                .thenAccept(renderable -> distanceViewRenderable = renderable);
+        DrawerLayout drawer = (DrawerLayout) findViewById(R.id.drawer_layout);
+        ActionBarDrawerToggle toggle = new ActionBarDrawerToggle(
+                this, drawer, toolbar, R.string.navigation_drawer_open, R.string.navigation_drawer_close);
+        drawer.setDrawerListener(toggle);
 
+        toggle.syncState();
 
-        arFragment.setOnTapArPlaneListener((HitResult hitResult, Plane plane, MotionEvent motionEvent) -> {
-            Log.d(TAG, "Touch event occur!!");
-            Log.d(TAG, "motion Event : " + Integer.toString(motionEvent.getAction()));
-            Log.d(TAG, "motion Event (x, y): " + Float.toString(motionEvent.getX()) + " " + Float.toString(motionEvent.getY()));
-            Log.d(TAG, "arview size = " + Integer.toString(arFragment.getArSceneView().getWidth()) + " " + Integer.toString(arFragment.getArSceneView().getHeight()));
+        NavigationView navigationView = (NavigationView) findViewById(R.id.nav_view);
+        navigationView.setNavigationItemSelectedListener(this);
 
-            Anchor tmp = hitResult.createAnchor();
-            AnchorNode tmpNode = new AnchorNode(tmp);
-            twoNode.addElement(tmpNode);
-            if (!isTwo) {
-                isTwo = true;
-            } else {
-                addLineBetweenHits(hitResult, plane, motionEvent);
-                twoNode.clear();
-                isTwo = false;
-            }
-        });
+        TabLayout tabLayout = (TabLayout) findViewById(R.id.tab_layout);
+        tabLayout.addTab(tabLayout.newTab().setText("기록 표시"));
+        tabLayout.addTab(tabLayout.newTab().setText("Ruler 선택"));
+        tabLayout.addTab(tabLayout.newTab().setText("추가추가"));
+        tabLayout.setTabGravity(TabLayout.GRAVITY_FILL);
 
-
-        opencvBtn.setOnClickListener(new View.OnClickListener() {
+        final ViewPager viewPager = (ViewPager) findViewById(R.id.pager);
+        final PagerAdapter adapter = new PagerAdapter
+                (getSupportFragmentManager(), tabLayout.getTabCount());
+        viewPager.setAdapter(adapter);
+        viewPager.addOnPageChangeListener(new TabLayout.TabLayoutOnPageChangeListener(tabLayout));
+        tabLayout.setOnTabSelectedListener(new TabLayout.OnTabSelectedListener() {
             @Override
-            public void onClick(View v) {
-                if (image != null)
-                    image.close(); //release before image
+            public void onTabSelected(TabLayout.Tab tab) {
+                viewPager.setCurrentItem(tab.getPosition());
+                TabFragment1 fragment1 = new TabFragment1();
+            }
 
-                try {//get camera image
-                    image = arSceneView.getArFrame().acquireCameraImage();
-                } catch (NotYetAvailableException e) {
-                    e.printStackTrace();
-                }
+            @Override
+            public void onTabUnselected(TabLayout.Tab tab) {
 
-                /*********** Image to RGB *************/
-                byte[] nv21;
+            }
 
-                ByteBuffer yBuffer = image.getPlanes()[0].getBuffer();
-                ByteBuffer uBuffer = image.getPlanes()[1].getBuffer();
-                ByteBuffer vBuffer = image.getPlanes()[2].getBuffer();
+            @Override
+            public void onTabReselected(TabLayout.Tab tab) {
 
-                int ySize = yBuffer.remaining();
-                int uSize = uBuffer.remaining();
-                int vSize = vBuffer.remaining();
-
-                nv21 = new byte[ySize + uSize + vSize];
-
-                //U and V are swapped
-                yBuffer.get(nv21, 0, ySize);
-                vBuffer.get(nv21, ySize, vSize);
-                uBuffer.get(nv21, ySize + vSize, uSize);
-
-                Mat mRGB = getYUV2Mat(nv21);
-                /*************************************/
-
-
-                Log.d(TAG, "matsize : " + mRGB.size().toString());
-                Log.d(TAG, "width : " + Integer.toString(image.getWidth()));
-                Log.d(TAG, "height : " + Integer.toString(image.getHeight()));
-
-                // Use OPENCV to detect object
-                float rec[] = new float[8];
-                rec = ConvertRGBtoGray(mRGB.getNativeObjAddr());
-
-                Log.d(TAG, "rec length : " + Integer.toString(rec.length));
-                for (int i = 0; i < rec.length; i++) {
-                    Log.d(TAG, "rec coordinate : " + Float.toString(rec[i]));
-                }
-
-
-                if (rec[0] == -1.f) { // no detected object
-
-
-                } else { // detect successful
-                    Vector<vec2> pos = new Vector<vec2>(4);
-                    pos.add(new vec2(rec[0], rec[1]));
-                    pos.add(new vec2(rec[2], rec[3]));
-                    pos.add(new vec2(rec[4], rec[5]));
-                    pos.add(new vec2(rec[6], rec[7]));
-
-
-                    for (int i = 0; i < 4; i++) {
-                        for(int j = 0; j < 2; j++){
-                            if(i+j < 4){
-                                y = pos.get(j+i).x; // 세로로 찍으면 xy 바뀜 (640X480 -> 480X640)
-                                // arcore는 1080 * 1920 이므로 비율을 곱한다
-                                y *= 1920.f/640.f;
-                                x = pos.get(j+i).y;
-                                x *= 1080.f/480.f;
-                                x = 1080.f - x;
-
-                                Log.d(TAG, "x, y : " + Float.toString(x) + " " + Float.toString(y));
-                                motionEvent = MotionEvent.obtain(
-                                        downTime,
-                                        eventTime,
-                                        MotionEvent.ACTION_UP, //Touch event catch only UP action
-                                        x,
-                                        y, metaState
-                                );
-                                arFragment.getArSceneView().dispatchTouchEvent(motionEvent);
-                            }else{
-                                y = pos.get(0).x;
-                                y *= 1920.f/640.f;
-                                x = 640.f - pos.get(0).y;
-                                x *= 1080.f/480.f;
-                                x = 1080.f - x;
-                                Log.d(TAG, "x, y : " + Float.toString(x) + " " + Float.toString(y));
-                                motionEvent = MotionEvent.obtain(
-                                        downTime,
-                                        eventTime,
-                                        MotionEvent.ACTION_UP,  //Touch event catch only UP action
-                                        x,
-                                        y, metaState
-                                );
-                                arFragment.getArSceneView().dispatchTouchEvent(motionEvent);
-                            }
-
-                        }
-                    }
-                }
             }
         });
     }
 
+    @Override
+    public void onBackPressed() {
+        DrawerLayout drawer = (DrawerLayout) findViewById(R.id.drawer_layout);
+        if (drawer.isDrawerOpen(GravityCompat.START)) {
+            drawer.closeDrawer(GravityCompat.START);
+        } else {
+            super.onBackPressed();
+        }
+    }
 
-    // 안드로이드 버전을 확인한다.
-    public static boolean checkIsSupportedDeviceOrFinish(final Activity activity) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) {
-            Log.e(TAG, "Sceneform requires Android N or later");
-            Toast.makeText(activity, "Sceneform requires Android N or later", Toast.LENGTH_LONG).show();
-            activity.finish();
-            return false;
+
+    @SuppressWarnings("StatementWithEmptyBody")
+    @Override
+    public boolean onNavigationItemSelected(MenuItem item) {
+
+        // Handle navigation view item clicks here.
+        int id = item.getItemId();
+
+        if (id == R.id.nav_camera) {
+
+            Intent intent = new Intent(this, ArviewActivity.class);
+            startActivity(intent);
+
+            // Handle the camera action
+        } else if (id == R.id.nav_gallery) {
+
+
+
+            Intent intent = new Intent();
+// Show only images, no videos or anything else
+            intent.setType("image/*");
+            intent.setAction(Intent.ACTION_GET_CONTENT);
+// Always show the chooser (if there are multiple options available)
+            startActivityForResult(Intent.createChooser(intent, "Select Picture"), 1);
+
+        } else if (id == R.id.nav_slideshow) {
+
+        } else if (id == R.id.nav_manage) {
+
+        } else if (id == R.id.nav_share) {
+
+            Intent intent = new Intent(android.content.Intent.ACTION_SEND);
+            intent.setType("text/plain");
+
+// Set default text message
+// 카톡, 이메일, MMS 다 이걸로 설정 가능
+//String subject = "문자의 제목";
+            String text = "원하는 텍스트를 입력하세요";
+//intent.putExtra(Intent.EXTRA_SUBJECT, subject);
+            intent.putExtra(Intent.EXTRA_TEXT, text);
+
+// Title of intent
+            Intent chooser = Intent.createChooser(intent, "친구에게 공유하기");
+            startActivity(chooser);
+
+        } else if (id == R.id.nav_send) {
+
         }
-        String openGlVersionString =
-                ((ActivityManager) activity.getSystemService(Context.ACTIVITY_SERVICE))
-                        .getDeviceConfigurationInfo()
-                        .getGlEsVersion();
-        if (Double.parseDouble(openGlVersionString) < MIN_OPENGL_VERSION) {
-            Log.e(TAG, "Sceneform requires OpenGL ES 3.0 later");
-            Toast.makeText(activity, "Sceneform requires OpenGL ES 3.0 or later", Toast.LENGTH_LONG)
-                    .show();
-            activity.finish();
-            return false;
-        }
+
+        DrawerLayout drawer = (DrawerLayout) findViewById(R.id.drawer_layout);
+        drawer.closeDrawer(GravityCompat.START);
         return true;
     }
 
-    private void addLineBetweenHits(HitResult hitResult, Plane plane, MotionEvent motionEvent) {
-        AnchorNode node1 = twoNode.get(0);
-        AnchorNode node2 = twoNode.get(1);
+    /*private void shareImage(){
+        Intent share = new Intent(Intent.ACTION_SEND);
+        share.setType("image/*");
+        String imagePath = Environment.getExternalStorageDirectory() + "/myImage.png";
+        File imageFileToShare = new File(imagePath);
+        Uri uri = Uri.fromFile(imageFileToShare);
+        share.putExtra(Intent.EXTRA_STREAM, uri);
 
-        node1.setParent(arFragment.getArSceneView().getScene());
-        Vector3 point1, point2;
-        point1 = node1.getWorldPosition();
-        point2 = node2.getWorldPosition();
+        startActivity(Intent.createChooser(share, "Share image to..."));
 
-        final Vector3 difference = Vector3.subtract(point1, point2);
-        final Vector3 directionFromTopToBottom = difference.normalized();
-        final Quaternion rotationFromAToB = Quaternion.lookRotation(directionFromTopToBottom, Vector3.up());
-        Color color = new Color();
-        color.set(1, 0, 0);
-        MaterialFactory.makeOpaqueWithColor(getApplicationContext(), color)
-                .thenAccept(
-                        material -> {
-                            ModelRenderable model = ShapeFactory.makeCube(
-                                    new Vector3(.01f, .005f, difference.length()),
-                                    Vector3.zero(), material);
-
-                            Node node = new Node();
-                            node.setParent(node1);
-                            node.setRenderable(model);
-                            node.setWorldPosition(Vector3.add(point1, point2).scaled(.5f));
-                            node.setWorldRotation(rotationFromAToB);
-                        }
-                );
+    }*/
 
 
-        float dis = difference.length();
-        String dis_s = Float.toString(dis);
-        distanceText.setText("distance : " + dis_s + "m");
+
+
+
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        // Handle action bar item clicks here. The action bar will
+        // automatically handle clicks on the Home/Up button, so long
+        // as you specify a parent activity in AndroidManifest.xml.
+        int id = item.getItemId();
+
+        //noinspection SimplifiableIfStatement
+        if (id == R.id.action_settings) {
+            return true;
+        }
+
+        return super.onOptionsItemSelected(item);
     }
-
-    public Mat getYUV2Mat(byte[] data) {
-        Mat mYuv = new Mat(image.getHeight() + image.getHeight() / 2, image.getWidth(), CV_8UC1);
-        mYuv.put(0, 0, data);
-        Mat mRGB = new Mat();
-        cvtColor(mYuv, mRGB, Imgproc.COLOR_YUV2RGB_NV21, 3);
-        return mRGB;
-    }
-
 
     /**
-     * A native method that is implemented by the 'native-lib' native library,
-     * which is packaged with this application.
+     * A placeholder fragment containing a simple view.
      */
+    public static class PlaceholderFragment extends Fragment {
+        /**
+         * The fragment argument representing the section number for this
+         * fragment.
+         */
+        private static final String ARG_SECTION_NUMBER = "section_number";
+
+        public PlaceholderFragment() {
+        }
+
+        /**
+         * Returns a new instance of this fragment for the given section
+         * number.
+         */
+        public static PlaceholderFragment newInstance(int sectionNumber) {
+            PlaceholderFragment fragment = new PlaceholderFragment();
+            Bundle args = new Bundle();
+            args.putInt(ARG_SECTION_NUMBER, sectionNumber);
+            fragment.setArguments(args);
+            return fragment;
+        }
+
+        /**
+         * A {@link FragmentPagerAdapter} that returns a fragment corresponding to
+         * one of the sections/tabs/pages.
+         */
+        public class SectionsPagerAdapter extends FragmentPagerAdapter {
+
+            public SectionsPagerAdapter(FragmentManager fm) {
+                super(fm);
+            }
+
+            @Override
+            public Fragment getItem(int position) {
+                // getItem is called to instantiate the fragment for the given page.
+                // Return a PlaceholderFragment (defined as a static inner class below).
+                return PlaceholderFragment.newInstance(position + 1);
+            }
+
+            @Override
+            public int getCount() {
+                // Show 3 total pages.
+                return 3;
+            }
+
+            @Override
+            public CharSequence getPageTitle(int position) {
+                switch (position) {
+                    case 0:
+                        TabFragment1 tab1 = new TabFragment1();
+                    case 1:
+                        TabFragment2 tab2 = new TabFragment2();
+                    case 2:
+                        TabFragment3 tab3 = new TabFragment3();
+                }
+                return null;
+            }
+        }
+    }
 }

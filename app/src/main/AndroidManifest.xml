@@ -5,9 +5,11 @@
     <!-- Both "AR Optional" and "AR Required" apps require CAMERA permission. -->
     <uses-permission android:name="android.permission.CAMERA" />
 
-    <!-- Indicates that app requires ARCore ("AR Required"). Ensures app is only
+    <!--
+         Indicates that app requires ARCore ("AR Required"). Ensures app is only
          visible in the Google Play Store on devices that support ARCore.
-         For "AR Optional" apps remove this line. -->
+         For "AR Optional" apps remove this line.
+    -->
     <uses-feature android:name="android.hardware.camera.ar" />
 
     <application
@@ -16,8 +18,37 @@
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:theme="@style/AppTheme">
-        <activity android:name=".MainActivity">
+        android:theme="@style/AppTheme.NoActionBar"
+        >
+
+        <activity
+            android:name=".MainActivity"
+            android:label="CurvSurf Ruler"
+            android:theme="@style/AppTheme.NoActionBar"
+            >
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+
+                <category android:name="android.intent.category.LAUNCHER" />
+
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="image/*" />
+
+            </intent-filter>
+        </activity>
+
+        <!-- AR Core -->
+        <!--
+         Indicates that app requires ARCore ("AR Required"). Causes Google
+         Play Store to download and install ARCore along with the app.
+         For an "AR Optional" app, specify "optional" instead of "required".
+        -->
+        <meta-data
+            android:name="com.google.ar.core"
+            android:value="required" />
+
+        <activity android:name=".ArviewActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
@@ -25,12 +56,7 @@
             </intent-filter>
         </activity>
 
-        <!-- AR Core -->
-        <!-- Indicates that app requires ARCore ("AR Required"). Causes Google
-         Play Store to download and install ARCore along with the app.
-         For an "AR Optional" app, specify "optional" instead of "required".
-        -->
-        <meta-data android:name="com.google.ar.core" android:value="required" />
+
     </application>
 
 </manifest>
